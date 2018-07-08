@@ -21,9 +21,6 @@ int wmain(int argc, PWSTR * argv)
 
 	printf("\nWritten by Leonardo Fagundes. No rights Reserved.\n");
 
-	printf("test");
-
-
 	//Obtain Debug Priviledge
 	if (!GrantDebugPrivilege())
 	{
