@@ -10,7 +10,7 @@ No installation or configuration required. No symbols or debugging tools require
 
 ![Alt text](screenshots/local2.png?raw=true "Image2")
 
-Works on Windows 7/8/10/2012R2/2016
+Works on Windows 7/8/10//11/2012R2/2016/2019
 
 Latest release:
 https://github.com/leonardomsft/WaitingOn/releases/download/v1.1/WaitingOn.exe
