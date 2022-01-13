@@ -16,7 +16,7 @@ BOOL CheckThreadsFromProcess(DWORD ProcId);
 void Usage();
 
 
-int wmain(int argc, PWSTR * argv)
+int wmain(int argc, wchar_t * argv[])
 {
 
 	printf("\nWritten by Leonardo Fagundes. No rights Reserved.\n");
@@ -35,12 +35,13 @@ int wmain(int argc, PWSTR * argv)
 	{
 		printf("ERROR: OpenThreadWaitChainSession failed\n");
 
-		return 1;
+		return -1;
 	}
 
 	// No arguments. Enumerate all processes in the system and call CheckThreadsFromProcess() for each one of them
 	if (argc < 2)
 	{
+		
 		DWORD processes[1024];
 		HANDLE process;
 		DWORD numProcesses;
@@ -53,6 +54,10 @@ int wmain(int argc, PWSTR * argv)
 
 			return 1;
 		}
+
+		//Populate list of services
+		GetServices();
+
 
 		//walk through all processes
 		for (int i = 0; i < numProcesses / sizeof(DWORD); i++)
@@ -109,7 +114,9 @@ int wmain(int argc, PWSTR * argv)
 	}
 	printf("\n");
 
-	// Close the WCT session.
+	//Cleanup
 	CloseThreadWaitChainSession(g_WctHandle);
+	if (pSvcBuffer != NULL) LocalFree(pSvcBuffer);
+
 
 }

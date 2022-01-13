@@ -7,6 +7,9 @@
 //Global declaration
 extern HWCT g_WctHandle;
 extern BOOL g_IsProcessPrinted;
+DWORD totalServicesCount = 0;
+LPBYTE pSvcBuffer = NULL;
+LPENUM_SERVICE_STATUS_PROCESS services = NULL;
 
 
 typedef struct _STR_ARRAY
@@ -18,30 +21,30 @@ typedef struct _STR_ARRAY
 STR_ARRAY STR_OBJECT_TYPE[] =
 {
 	{ "CriticalSection" },
-{ "SendMessage" },
-{ "Mutex" },
-{ "Alpc" },
-{ "COM" },
-{ "Thread" },
-{ "Process" },
-{ "Thread" },
-{ "ComActivation" },
-{ "Unknown" },
-{ "Max" }
+	{ "SendMessage" },
+	{ "Mutex" },
+	{ "Alpc" },
+	{ "COM" },
+	{ "Thread" },
+	{ "Process" },
+	{ "Thread" },
+	{ "ComActivation" },
+	{ "Unknown" },
+	{ "Max" }
 };
 
 STR_ARRAY STR_OBJECT_STATUS[] =
 {
 	{ "WctStatusNoAccess" },	// ACCESS_DENIED for this object
-{ "Running" },					// Thread status
-{ "Blocked" },					// Thread status
-{ "WctStatusPidOnly" },			// Thread status
-{ "WctStatusPidOnlyRpcss" },	// Thread status
-{ "Owned" },					// Dispatcher status
-{ "NotOwned" },					// Dispatcher status
-{ "Abandoned" },				// Dispatcher status
-{ "StatusUnknown" },			// All objects
-{ "WctStatusError" },			// All objects
+	{ "Running" },					// Thread status
+	{ "Blocked" },					// Thread status
+	{ "WctStatusPidOnly" },			// Thread status
+	{ "WctStatusPidOnlyRpcss" },	// Thread status
+	{ "Owned" },					// Dispatcher status
+	{ "NotOwned" },					// Dispatcher status
+	{ "Abandoned" },				// Dispatcher status
+	{ "StatusUnknown" },			// All objects
+	{ "WctStatusError" },			// All objects
 };
 
 
@@ -125,8 +128,8 @@ Routine Description:
 Resolves the process name based on a PID
 Arguments:
 PID - Specifies the process ID to resolve
-Return Value:
 String corresponding to the process name.
+Return Value: None
 */
 {
 	HANDLE process;
@@ -144,7 +147,23 @@ String corresponding to the process name.
 		{
 			exename = wcsrchr(exepath, L'\\') + 1;
 
-			wcscpy_s(szExeName, MAX_PATH, exename );
+			wcscpy_s(szExeName, MAX_PATH, exename);
+
+			//For services, also print ServiceName
+			for (int i = 0; i < totalServicesCount; ++i)
+			{
+				ENUM_SERVICE_STATUS_PROCESS service = services[i];
+
+				if (service.ServiceStatusProcess.dwProcessId == ProcId)
+				{
+
+					wcsncat_s(szExeName, MAX_PATH, L", service ", MAX_PATH);
+
+					wcsncat_s(szExeName, MAX_PATH, service.lpServiceName, MAX_PATH);
+
+				}
+			}
+
 		}
 	}
 	else
@@ -278,7 +297,7 @@ Return Value:
 					//owned
 					if (NodeInfoArray[i + 1].ObjectStatus == WctStatusOwned)
 					{
-						printf(" that is currently owned");
+						printf(" which is currently owned");
 
 						//by a thread
 						if (NodeInfoArray[i + 2].ThreadObject.ThreadId != 0)
@@ -312,7 +331,7 @@ Return Value:
 					//not owned
 					else
 					{
-						printf(" that is currently %s", STR_OBJECT_STATUS[NodeInfoArray[i + 1].ObjectStatus - 1].Desc);
+						printf(" which is currently %s", STR_OBJECT_STATUS[NodeInfoArray[i + 1].ObjectStatus - 1].Desc);
 					}
 
 
@@ -419,3 +438,82 @@ Print usage information to stdout.
 }
 
 
+void GetServices()
+{
+	SC_HANDLE hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ENUMERATE_SERVICE | SC_MANAGER_CONNECT);
+
+	if (hSCM == NULL)
+	{
+		return;
+	}
+
+	DWORD bufferSize = 0;
+	DWORD requiredBufferSize = 0;
+	DWORD dwRet = NULL;
+
+	if (!EnumServicesStatusEx(hSCM,
+		SC_ENUM_PROCESS_INFO,
+		SERVICE_WIN32,
+		SERVICE_STATE_ALL,
+		nullptr,
+		bufferSize,
+		&requiredBufferSize,
+		&totalServicesCount,
+		nullptr,
+		nullptr))
+	{
+		dwRet = GetLastError();
+
+		if (dwRet != ERROR_MORE_DATA)
+		{
+			wprintf(L"EnumServicesStatusEx. ERROR: %d. Exiting.\n", dwRet);
+
+			return;
+
+		}
+
+	}
+
+
+	bufferSize = requiredBufferSize;
+
+	//Allocate a buffer
+	pSvcBuffer = (LPBYTE)LocalAlloc(LMEM_ZEROINIT, requiredBufferSize);
+
+	if (pSvcBuffer == NULL)
+	{
+		wprintf(L"HeapAlloc. ERROR: %d. Exiting.\n", GetLastError());
+
+		return;
+	}
+
+
+
+	if (!EnumServicesStatusEx(hSCM,
+		SC_ENUM_PROCESS_INFO,
+		SERVICE_WIN32,
+		SERVICE_STATE_ALL,
+		pSvcBuffer,
+		bufferSize,
+		&requiredBufferSize,
+		&totalServicesCount,
+		nullptr,
+		nullptr))
+	{
+		dwRet = GetLastError();
+
+		if (dwRet != ERROR_MORE_DATA)
+		{
+			wprintf(L"EnumServicesStatusEx. ERROR: %d. Exiting.\n", dwRet);
+
+			return;
+
+		}
+
+	}
+
+	services = reinterpret_cast<LPENUM_SERVICE_STATUS_PROCESS>(pSvcBuffer);
+
+	CloseServiceHandle(hSCM);
+
+}
