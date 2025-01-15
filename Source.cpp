@@ -1,19 +1,10 @@
 #include "Header.h"
 
-//Global definitions
-
 //assures process info is printed just once
-BOOL g_IsProcessPrinted = false;
+bool g_IsProcessPrinted = false;
 
 // Global variable to store the WCT session handle
 HWCT g_WctHandle = NULL;
-
-//Function Prototypes
-BOOL GrantDebugPrivilege();
-void GetProcessNameFromPID(DWORD ProcId, PWSTR szExeName);
-void PrintWaitChainForThread(DWORD ProcId, DWORD ThreadId);
-BOOL CheckThreadsFromProcess(DWORD ProcId);
-void Usage();
 
 
 int wmain(int argc, wchar_t * argv[])

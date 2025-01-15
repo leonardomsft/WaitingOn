@@ -6,7 +6,7 @@
 
 //Global declaration
 extern HWCT g_WctHandle;
-extern BOOL g_IsProcessPrinted;
+extern bool g_IsProcessPrinted;
 DWORD totalServicesCount = 0;
 LPBYTE pSvcBuffer = NULL;
 LPENUM_SERVICE_STATUS_PROCESS services = NULL;
@@ -122,55 +122,51 @@ Cleanup:
 }
 
 
-void GetProcessNameFromPID(DWORD ProcId, PWSTR szExeName)
-/*
-Routine Description:
-Resolves the process name based on a PID
-Arguments:
-PID - Specifies the process ID to resolve
-String corresponding to the process name.
-Return Value: None
-*/
+bool GetProcessNameFromPID(DWORD ProcId, LPWSTR szExeName)
 {
-	HANDLE process;
+	if (ProcId == 0 || szExeName == nullptr) return false;
+
+	HANDLE hProcess;
+	WCHAR TempExepath[MAX_PATH] {0};
+	LPWSTR pTempExeName = nullptr;
+
 
 	// Get a handle to the process.
-	process = OpenProcess(PROCESS_ALL_ACCESS, false, ProcId);
-	if (process)
-	{
-		WCHAR exepath[MAX_PATH];
-		WCHAR * exename;
-		DWORD i = 0;
+	hProcess = OpenProcess(PROCESS_ALL_ACCESS, false, ProcId);
 
-		// Retrieve the executable name and returns it.
-		if (GetProcessImageFileName(process, exepath, ARRAYSIZE(exepath)) > 0)
+	if (hProcess == INVALID_HANDLE_VALUE) return false;
+
+	if (GetProcessImageFileName(hProcess, TempExepath, ARRAYSIZE(TempExepath)) > 0)
+	{
+		pTempExeName = wcsrchr(TempExepath, L'\\') + 1;
+
+		wcscpy_s(szExeName, MAX_PATH, pTempExeName);
+
+		//For services, also add ServiceName
+		for (int i = 0; i < totalServicesCount; ++i)
 		{
-			exename = wcsrchr(exepath, L'\\') + 1;
+			ENUM_SERVICE_STATUS_PROCESS service = services[i];
 
-			wcscpy_s(szExeName, MAX_PATH, exename);
-
-			//For services, also print ServiceName
-			for (int i = 0; i < totalServicesCount; ++i)
+			if (service.ServiceStatusProcess.dwProcessId == ProcId)
 			{
-				ENUM_SERVICE_STATUS_PROCESS service = services[i];
 
-				if (service.ServiceStatusProcess.dwProcessId == ProcId)
-				{
+				wcsncat_s(szExeName, MAX_PATH, L", service ", MAX_PATH);
 
-					wcsncat_s(szExeName, MAX_PATH, L", service ", MAX_PATH);
+				wcsncat_s(szExeName, MAX_PATH, service.lpServiceName, MAX_PATH);
 
-					wcsncat_s(szExeName, MAX_PATH, service.lpServiceName, MAX_PATH);
-
-				}
 			}
-
 		}
+
 	}
-	else
-	{
-		wcscpy_s(szExeName, MAX_PATH, L"");
+	else {
+
+		return false;
 	}
+
+	return true;
+
 }
+
 
 
 void PrintWaitChainForThread(DWORD ProcId, DWORD ThreadId)
@@ -213,13 +209,17 @@ Return Value:
 	//only print blocked threads
 	if (Count > 1)
 	{
+		//only print process name once
 		if (!g_IsProcessPrinted)
 		{
-			GetProcessNameFromPID(ProcId, szExeName);
+			if (GetProcessNameFromPID(ProcId, szExeName))
+			{
 
-			printf("\n\nProcess ID: %i (%S)", ProcId, szExeName);
+				printf("\n\nProcess ID: %i (%S)", ProcId, szExeName);
 
-			g_IsProcessPrinted = true;
+				g_IsProcessPrinted = true;
+
+			}
 		}
 
 		/*
@@ -242,7 +242,7 @@ Return Value:
 		for (int i = 0; i < Count; i = i + 2) {
 
 			//blocked and there's more nodes
-			if (NodeInfoArray[i].ObjectStatus == WctStatusBlocked & (i + 1 < Count))
+			if (NodeInfoArray[i].ObjectStatus == WctStatusBlocked && (i + 1 < Count))
 			{
 
 				//identation
